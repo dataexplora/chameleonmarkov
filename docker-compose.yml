@@ -3,9 +3,30 @@ services:
   chameleon:
     build: .
     container_name: chameleon
-    ports:
-      - "8885:8885"
+    # No direct host port; Traefik will route traffic
     environment:
       - FLASK_ENV=production
     restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.chameleon.rule=Host(`chameleon.ckstudios.work`)
+      - traefik.http.routers.chameleon.entrypoints=websecure
+      - traefik.http.routers.chameleon.tls.certresolver=mytlschallenge
+      - traefik.http.services.chameleon.loadbalancer.server.port=8885
+      - traefik.http.middlewares.cors.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,POST,DELETE
+      - traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=*
+      - traefik.http.middlewares.cors.headers.accesscontrolallowheaders=*
+      - traefik.http.middlewares.cors.headers.addvaryheader=true
+      - traefik.http.middlewares.https-redirect.redirectscheme.scheme=https
+      - traefik.http.routers.chameleon.middlewares=cors,https-redirect
+    volumes:
+      - ./server_harmonised_output:/app/server_harmonised_output
+      - ./server_input_melodies:/app/server_input_melodies
+      - ./static/harmonisations:/app/static/harmonisations
+    networks:
+      - root_default
+
+networks:
+  root_default:
+    external: true
 
