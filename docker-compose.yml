@@ -1,0 +1,11 @@
+version: '3.8'
+services:
+  chameleon:
+    build: .
+    container_name: chameleon
+    ports:
+      - "8885:8885"
+    environment:
+      - FLASK_ENV=production
+    restart: unless-stopped
+

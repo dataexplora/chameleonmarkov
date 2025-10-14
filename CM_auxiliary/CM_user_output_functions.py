@@ -10,7 +10,20 @@ import music21 as m21
 
 def generate_midi(sc, fileName="test_midi.mid", destination="/Users/maximoskaliakatsos-papakostas/Documents/python/miscResults/"):
     # we might want the take the name from uData information, e.g. the uData.input_id, which might preserve a unique key for identifying which file should be sent are response to which user
-    mf = m21.midi.translate.streamToMidiFile(sc)
+    # Ensure the stream has measures before MIDI export; music21's MIDI path calls expandRepeats()
+    # which requires measure structures present on the stream
+    s = sc
+    if not isinstance(s, m21.stream.Score):
+        tmpScore = m21.stream.Score()
+        tmpScore.insert(0, s)
+        s = tmpScore
+    try:
+        # create measures if missing; returns a new stream when inPlace=False
+        s = s.makeMeasures(inPlace=False)
+    except Exception:
+        # proceed even if measure inference fails; MIDI export may still work for some streams
+        pass
+    mf = m21.midi.translate.streamToMidiFile(s)
     mf.open(destination + fileName, 'wb')
     mf.write()
     mf.close()

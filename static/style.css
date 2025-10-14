@@ -21,8 +21,8 @@
 }
 
 .hero{
-	min-height: 146px;
-    background: url(../img/header.png);
+    min-height: 146px;
+    background: url(img/header.png);
     background-size: contain;
     background-repeat: no-repeat;
 }

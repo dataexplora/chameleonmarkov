@@ -122,7 +122,7 @@ def upload():
     #tmp_json = {}
     #tmp_json['initial_output_file_name'] = initial_output_file_name
     #return jsonify(tmp_json)
-    return send_file(filename_or_fp=output_file_with_path, attachment_filename=output_file_name, as_attachment=True)
+    return send_file(output_file_with_path, as_attachment=True, download_name=output_file_name)
     #return 'file uploaded successfully'
 
 @app.route("/get_idiom_names", methods=['POST'])
