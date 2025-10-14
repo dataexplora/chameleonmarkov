@@ -265,10 +265,18 @@
     function submit_form(){
         // Save current state
         saveCurrentState();
+
+        // Ensure a file is selected before proceeding. If not, show a friendly message
+        var filePickerCheck = document.getElementById('file-picker');
+        if (!filePickerCheck || !filePickerCheck.files || !filePickerCheck.files[0]) {
+            // Keep the UI visible and inform the user
+            $("#msg").text("No file selected. Please upload an XML/MXL file before harmonising.");
+            return;
+        }
         
-        // submit UI info before sending the form
-        $("#upload-form").closest('.cm-card').fadeOut(500);
-        $("#all_parameters").closest('.cm-card').fadeOut(500);
+    // submit UI info before sending the form
+    $("#upload-form").closest('.cm-card').fadeOut(500);
+    $("#all_parameters").closest('.cm-card').fadeOut(500);
         $("#results").fadeIn(1000);
         
         // Show loading state
@@ -493,9 +501,9 @@
           <div class="flex items-center gap-3">
             <i class="material-icons text-neutral-500">description</i>
             <span id="file-name" class="text-sm text-neutral-600 font-medium flex-1"></span>
-            <button onclick="clearFile()" class="text-neutral-400 hover:text-neutral-600">
-              <i class="material-icons">close</i>
-            </button>
+                        <button type="button" onclick="clearFile(); return false;" class="text-neutral-400 hover:text-neutral-600">
+                            <i class="material-icons">close</i>
+                        </button>
           </div>
         </div>
       </div>

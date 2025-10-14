@@ -94,8 +94,13 @@ def upload():
     global voiceLeading
     global mode_in
     # print('request: ', request)
-    if len(request.files.getlist("file")) < 1:
-        return
+    # Filter out empty file inputs (some browsers may submit an empty FileStorage)
+    raw_files = request.files.getlist("file")
+    files = [f for f in raw_files if f and getattr(f, 'filename', None)]
+    if len(files) < 1:
+        # No usable file provided - redirect back to the index so the UI remains available
+        print('No file provided in upload request; redirecting to index')
+        return redirect('/')
     target = os.path.join(APP_ROOT, 'server_input_melodies/')
     
     # request_code = datetime.datetime.now().strftime("%I_%M_%S%p_%b_%d_%Y")
@@ -122,30 +127,43 @@ def upload():
     purge_old_files(output)
     purge_old_files(static_output_1)
 
-    for file in request.files.getlist("file"):
-        print(file)
-        filename = file.filename
-        destination = "/".join([target, filename])
-        print(destination)
-        file.save(destination)
+    # Process only valid files and guard against processing errors
+    try:
+        for file in files:
+            print(file)
+            filename = file.filename
+            # ignore empty filenames just in case
+            if not filename:
+                continue
+            destination = "/".join([target, filename])
+            print(destination)
+            file.save(destination)
 
-        # parent_dir = os.path.abspath(os.path.join(cwd, os.pardir))
-        melodyFolder = target
-        # melodyFolder = cwd + '/input_melodies/'
-        melodyFileName = filename
+            melodyFolder = target
+            melodyFileName = filename
 
-        # TODO: makei it properly - this is a temporary vl fix
-        tmp_vl_string = 'simple'
-        if voiceLeading == 'NoVL':
-            print(voiceLeading)
+            # temporary voice-leading mapping
             tmp_vl_string = 'simple'
-        elif voiceLeading == 'BBVL':
-            print(voiceLeading)
-            tmp_vl_string = 'bidirectional_bvl'
-        else:
-            print('Unknown VL option!')
-        # set mode_in
-        m, idiom = hrm.harmonise_melody_with_idiom(melodyFolder, melodyFileName, idiom_name,targetFolder=output, mode_in=mode_in, use_GCT_grouping=useGrouping, voice_leading=tmp_vl_string)
+            if voiceLeading == 'NoVL':
+                tmp_vl_string = 'simple'
+            elif voiceLeading == 'BBVL':
+                tmp_vl_string = 'bidirectional_bvl'
+            else:
+                print('Unknown VL option!')
+
+            m, idiom = hrm.harmonise_melody_with_idiom(
+                melodyFolder,
+                melodyFileName,
+                idiom_name,
+                targetFolder=output,
+                mode_in=mode_in,
+                use_GCT_grouping=useGrouping,
+                voice_leading=tmp_vl_string,
+            )
+    except Exception as e:
+        # Log the exception and redirect back to the index to avoid the browser rendering JSON
+        print('Error during harmonisation:', e)
+        return redirect('/')
     
     # the output name as produced by chameleon
     initial_output_file_name = m.name+'_'+idiom_name+'.xml'
