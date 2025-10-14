@@ -257,9 +257,19 @@ def blend_two_idioms_all_modes( idiom1_name, idiom2_name, saving_folder='blended
             for td in range(12):
                 b = BlendingSession(idiom1, idiom2, md1=i1, md2=i2, ton_diff=td)
                 idiom = b.blended_idiom
-                # save blended idiom
-                with open(saving_folder+idiom.name+'.pickle', 'wb') as handle:
-                    pickle.dump(idiom, handle, protocol=pickle.HIGHEST_PROTOCOL)
+                # skip if already exists (resume-friendly)
+                out_path = os.path.join(saving_folder, idiom.name + '.pickle')
+                try:
+                    if os.path.exists(out_path):
+                        # already computed, skip writing
+                        continue
+                    # save blended idiom
+                    os.makedirs(saving_folder, exist_ok=True)
+                    with open(out_path, 'wb') as handle:
+                        pickle.dump(idiom, handle, protocol=pickle.HIGHEST_PROTOCOL)
+                except Exception:
+                    # do not crash long batch on single write error
+                    pass
 # end blend_two_idioms_all_modes
 
 def blend_all_idioms_from_list( idioms_list ):

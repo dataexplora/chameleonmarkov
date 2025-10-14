@@ -5,6 +5,7 @@ import json
 cwd = os.getcwd()
 import sys
 import pickle
+import time
 # import datetime
 # use folders of generation functions
 sys.path.insert(0, cwd + '/CM_generate')
@@ -28,6 +29,50 @@ mode_in = 'Auto'
 app = Flask(__name__)
 
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
+
+
+def purge_old_files(directory_path: str, max_files: int = 500, max_age_days: int = 30) -> None:
+    """Delete generated files to avoid filling disk.
+
+    - Removes files older than max_age_days
+    - Keeps only the most recent max_files files
+    """
+    try:
+        if not os.path.isdir(directory_path):
+            os.makedirs(directory_path, exist_ok=True)
+            return
+        now = time.time()
+        max_age_seconds = max_age_days * 24 * 60 * 60
+        files = [
+            os.path.join(directory_path, f)
+            for f in os.listdir(directory_path)
+            if os.path.isfile(os.path.join(directory_path, f))
+        ]
+        # Remove old files first
+        for f in files:
+            try:
+                if now - os.path.getmtime(f) > max_age_seconds:
+                    os.remove(f)
+            except Exception:
+                pass
+        # Enforce max file count
+        files = [
+            os.path.join(directory_path, f)
+            for f in os.listdir(directory_path)
+            if os.path.isfile(os.path.join(directory_path, f))
+        ]
+        if len(files) > max_files:
+            files.sort(key=lambda p: os.path.getmtime(p))  # oldest first
+            to_delete = files[: len(files) - max_files]
+            for f in to_delete:
+                try:
+                    os.remove(f)
+                except Exception:
+                    pass
+    except Exception:
+        # Never block request due to cleanup
+        pass
+
 
 def zipdir(path, ziph):
     # ziph is zipfile handle
@@ -71,6 +116,12 @@ def upload():
     static_output_1 = 'static/harmonisations'
     static_output_2 = 'templates/static/harmonisations'
 
+    # Ensure output dirs exist and cleanup generated files periodically
+    os.makedirs(output, exist_ok=True)
+    os.makedirs(static_output_1, exist_ok=True)
+    purge_old_files(output)
+    purge_old_files(static_output_1)
+
     for file in request.files.getlist("file"):
         print(file)
         filename = file.filename
@@ -111,12 +162,9 @@ def upload():
     uof.generate_midi(m.output_stream, fileName=midi_name, destination=output_path)
     output_midi_with_path = output_path+'/'+midi_name
 
-    # copy to static folders for playback/display
+    # copy to static folder for playback/display
     shutil.copy2(output_file_with_path, static_output_1)
-    shutil.copy2(output_file_with_path, static_output_2)
-    # also midi
     shutil.copy2(output_midi_with_path, static_output_1)
-    shutil.copy2(output_midi_with_path, static_output_2)
 
     # prepare response
     #tmp_json = {}
@@ -127,9 +175,9 @@ def upload():
 
 @app.route("/get_idiom_names", methods=['POST'])
 def get_idiom_names():
-    #get all Idioms
-    list_all = glob.glob('static/trained_idioms/*.pickle')
-    list_bl = glob.glob('static/trained_idioms/bl_*.pickle')
+    # Get all idioms from a single canonical folder
+    list_all = glob.glob('trained_idioms/*.pickle')
+    list_bl = glob.glob('trained_idioms/bl_*.pickle')
     idiom_names_list = [item for item in list_all if item not in list_bl]
     # idiom_names_list = glob.glob('static/trained_idioms/*.pickle')
     allIdioms = {}

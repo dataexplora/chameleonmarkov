@@ -26,6 +26,9 @@ Thumbs.db
 server_harmonised_output/
 server_input_melodies/
 training_logs/
+static/harmonisations/*
+!static/harmonisations/.gitkeep
+templates/static/harmonisations/
 
 # Logs
 *.log

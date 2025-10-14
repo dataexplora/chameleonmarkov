@@ -7,7 +7,8 @@
  <script type='text/javascript' src='//www.midijs.net/lib/midi.js'></script>
  <script src="/static/js/opensheetmusicdisplay.min.js"></script>
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-<link type="text/css" rel="stylesheet" href="/static/materialize.min.css"  media="screen,projection"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
 <link type="text/css" rel="stylesheet" href="/static/style.css"/>    
 </head>
 <body>
@@ -24,13 +25,15 @@
 	var initJson;
 	var keys = [];
     var my_ID = ID();
-	var radio_option = "Style1";
     $(document).ready(function(){
         // initialise grouping checkbox
         document.getElementById('groupingCheckbox').checked = false;
-		document.getElementById('harmonise').disabled = true;
-		// initialise radiobuttons
-		document.getElementById('radioStyle1').checked = true;
+        document.getElementById('harmonise').disabled = true;
+        // initialise toggles
+        var t1 = document.getElementById('enable_style1');
+        var t2 = document.getElementById('enable_style2');
+        if (t1) t1.checked = true;
+        if (t2) t2.checked = false;
 		// initialise dropdown menus
 		document.getElementById("idiom_select1").selectedIndex = "0";
 		document.getElementById("idiom_select2").selectedIndex = "0";
@@ -38,7 +41,24 @@
 		document.getElementById("mode_select2").selectedIndex = "0";
 		document.getElementById("tonal_diff").selectedIndex = "0";
 		document.getElementById("voice_leading_select").value = "NoVL";
-        osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("score_container");
+        // Initialize OSMD with options
+        osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("score_container", {
+            autoResize: true,
+            drawTitle: true,
+            drawSubtitle: true,
+            drawComposer: true,
+            drawLyricist: true,
+            drawCredits: true,
+            drawMetronomeMarks: true,
+            drawTimeSignatures: true,
+            drawMeasureNumbers: true,
+            drawFingerings: true,
+            drawLyrics: true,
+            drawSlurs: true,
+            drawDynamics: true,
+            drawHiddenNotes: false,
+            drawHints: true
+        });
 		document.getElementById('results').style.display = 'none';
         // request list of idiom names from server
         var dummy_json = {
@@ -73,6 +93,7 @@
 				document.getElementById("mode_select1").add(option);
 				document.getElementById("mode_select2").add(option2);
 			}
+            updateUIByToggles();
         });
     });
 	
@@ -89,36 +110,39 @@
 		tonal_diff = document.getElementById("tonal_diff").value;	
         useGrouping = document.getElementById('groupingCheckbox').checked;
 		voiceLeading = document.getElementById("voice_leading_select").value;
-		harmType = document.querySelector('input[name="styles"]:checked').value;
+        var enabled1 = document.getElementById('enable_style1').checked;
+        var enabled2 = document.getElementById('enable_style2').checked;
+        var harmType = 'Style1';
 		
-		// check status of radio button and select options to be included in the json file
-		if (radio_option=="Blend" && (mode1_name=="Auto" || mode2_name=="Auto")){
-			var tmp_str = "When blending, auto mode should not be selected as an option.\n"
-			if (mode1_name=="Auto"){
-				mode1_name = document.getElementById("mode_select1").options[1].value;
-				tmp_str += "Mode 1 has been set to: " + mode1_name + "\n";
-			}
-			if (mode2_name=="Auto"){
-				mode2_name = document.getElementById("mode_select2").options[1].value;
-				tmp_str += "Mode 2 has been set to: " + mode2_name + "\n";
-			}
-			alert(tmp_str);
-			ret_state = false;
-		}
+        // compute behaviour based on toggles
+        if (!enabled1 && !enabled2){
+            alert('Please enable Style 1 or Style 2 to proceed.');
+            return;
+        }
 		var idiom_name = [];
 		var mode_name = [];
 		var ton_diff = [];
-		if (radio_option=="Blend"){
+        if (enabled1 && enabled2){
+            // Blend: ensure non-Auto modes
+            if (mode1_name=="Auto" && document.getElementById("mode_select1").options.length>1){
+                mode1_name = document.getElementById("mode_select1").options[1].value;
+            }
+            if (mode2_name=="Auto" && document.getElementById("mode_select2").options.length>1){
+                mode2_name = document.getElementById("mode_select2").options[1].value;
+            }
 			ton_diff = tonal_diff;
 			console.log('ton_diff: ', ton_diff);
 			idiom_name = 'bl_' + idiom1_name + mode1_name + '_D' + ton_diff + '_' + idiom2_name + mode2_name;
 			mode_name = "Auto";
-		}else if (radio_option=="Style1"){
+            harmType = 'Blend';
+        }else if (enabled1){
 			idiom_name = idiom1_name;
 			mode_name = mode1_name;
-		}else{
+            harmType = 'Style1';
+        }else{
 			idiom_name = idiom2_name;
 			mode_name = mode2_name;
+            harmType = 'Style2';
 		}
 		console.log('idiom_name: ', idiom_name);
 		console.log('mode_name: ', mode_name);
@@ -130,41 +154,246 @@
 			voiceLeading: voiceLeading,
 			harmType: harmType
 		};
-		$.post( "/set_parameters", JSON.stringify(parameters_json), function(resp){
-			if(resp['success']){
-				name_suffix = resp['name_suffix']
-				console.log('UI message received by server - success!');
-				server_response_success = true;
-				file_name_xml = input.files[0].name.split(".")[0]+name_suffix+".xml"
-				file_name_mid = input.files[0].name.split(".")[0]+name_suffix+".mid"
-				$("#score_info").html('Preparing score...Please Wait');
-				$("#upload-form").submit();
-			// $("#upload-form").submit(function(){
-			//		$.post($(this).attr('action'), $(this).serialize(), function(json) {
-				//	  alert(json);
-					//}, 'json');
-				//});		
-			}else{
-				alert('Server unavailable :( please try again later');
-			}
-		});
+        $.post("/set_parameters", JSON.stringify(parameters_json), function(resp) {
+            if (resp['success']) {
+                var name_suffix = resp['name_suffix'];
+                console.log('UI message received by server - success!');
+                server_response_success = true;
+
+                // Get base filename from file picker
+                var filePicker = document.getElementById('file-picker');
+                if (!filePicker || !filePicker.files || !filePicker.files[0]) {
+                    console.error('No file selected');
+                    return;
+                }
+
+                var baseFileName = filePicker.files[0].name.split(".")[0];
+                
+                // Set global file names
+                window.file_name_xml = baseFileName + name_suffix + ".xml";
+                window.file_name_mid = baseFileName + name_suffix + ".mid";
+                
+                console.log('Generated filenames:', {
+                    xml: window.file_name_xml,
+                    mid: window.file_name_mid
+                });
+
+                $("#score_info").html('Preparing score... Please Wait');
+                $("#upload-form").submit();
+            } else {
+                alert('Server unavailable :( please try again later');
+            }
+        });
     };
 	
+    function saveCurrentState() {
+        // Save settings
+        const settings = {
+            style1: document.getElementById('enable_style1').checked,
+            style2: document.getElementById('enable_style2').checked,
+            idiom1: document.getElementById('idiom_select1').value,
+            idiom2: document.getElementById('idiom_select2').value,
+            mode1: document.getElementById('mode_select1').value,
+            mode2: document.getElementById('mode_select2').value,
+            tonalDiff: document.getElementById('tonal_diff').value,
+            voiceLeading: document.getElementById('voice_leading_select').value,
+            useChordFamilies: document.getElementById('groupingCheckbox').checked
+        };
+        
+        // Save file if available
+        const fileInput = document.getElementById('file-picker');
+        if (fileInput && fileInput.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const fileData = {
+                    name: fileInput.files[0].name,
+                    content: e.target.result
+                };
+                localStorage.setItem('chameleon_file', JSON.stringify(fileData));
+            };
+            reader.readAsDataURL(fileInput.files[0]);
+        }
+        
+        localStorage.setItem('chameleon_settings', JSON.stringify(settings));
+    }
+    
+    function restoreState() {
+        try {
+            // Restore settings
+            const settings = JSON.parse(localStorage.getItem('chameleon_settings'));
+            if (settings) {
+                document.getElementById('enable_style1').checked = settings.style1;
+                document.getElementById('enable_style2').checked = settings.style2;
+                document.getElementById('idiom_select1').value = settings.idiom1;
+                document.getElementById('idiom_select2').value = settings.idiom2;
+                document.getElementById('mode_select1').value = settings.mode1;
+                document.getElementById('mode_select2').value = settings.mode2;
+                document.getElementById('tonal_diff').value = settings.tonalDiff;
+                document.getElementById('voice_leading_select').value = settings.voiceLeading;
+                document.getElementById('groupingCheckbox').checked = settings.useChordFamilies;
+                
+                // Update UI based on restored settings
+                updateUIByToggles();
+            }
+            
+            // Restore file
+            const fileData = JSON.parse(localStorage.getItem('chameleon_file'));
+            if (fileData) {
+                // Create a File object from the stored data
+                fetch(fileData.content)
+                    .then(res => res.blob())
+                    .then(blob => {
+                        const file = new File([blob], fileData.name, { type: 'text/xml' });
+                        
+                        // Create a DataTransfer object to set the file input
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(file);
+                        
+                        // Set the file input's files
+                        const fileInput = document.getElementById('file-picker');
+                        fileInput.files = dataTransfer.files;
+                        
+                        // Trigger the change event to update UI
+                        handleFile(file);
+                    });
+            }
+        } catch (e) {
+            console.error('Error restoring state:', e);
+        }
+    }
+
     function submit_form(){
+        // Save current state
+        saveCurrentState();
+        
         // submit UI info before sending the form
-		$("#upload-form").fadeOut(1000); 
-		$("#all_parameters").fadeOut(1500);
-		$("#results").fadeIn(2000);
+        $("#upload-form").closest('.cm-card').fadeOut(500);
+        $("#all_parameters").closest('.cm-card').fadeOut(500);
+        $("#results").fadeIn(1000);
+        
+        // Show loading state
+        $("#score_info").html(`
+            <div class="flex flex-col items-center justify-center">
+                <div class="loading-spinner mb-4"></div>
+                <h3 class="text-xl font-semibold text-neutral-800">Harmonizing your melody...</h3>
+                <p class="text-sm text-neutral-600 mt-2">This may take a few seconds</p>
+            </div>
+        `);
+        
+        // Disable buttons during processing
+        $("#score_buttons button").prop('disabled', true);
+        
         console.log('submitting UI info');
-		submit_UI_info();
-		setTimeout(function(){
-			$("#score_info").html('Harmonisation Completed!');
-			osmd.load('static/harmonisations/'+file_name_xml).then( function() {
-				osmd.zoom = 0.6;
-				osmd.render();
-			});
-		// document.getElementById('score_container').style.display = 'block';
-		}, 5000);
+        submit_UI_info();
+        
+        setTimeout(function(){
+            if (!window.file_name_xml || !window.file_name_mid) {
+                console.error('No filenames available');
+                $("#score_info").html(`
+                    <div class="flex items-center justify-center text-xl font-semibold text-red-600">
+                        <i class="material-icons mr-2">error</i>
+                        Error during harmonization
+                    </div>
+                `);
+                return;
+            }
+            
+            // Show completion state
+            $("#score_info").html(`
+                <div class="flex items-center justify-center text-xl font-semibold text-neutral-800">
+                    <i class="material-icons text-green-600 mr-2">check_circle</i>
+                    Harmonisation Completed!
+                </div>
+            `);
+            
+            // Update filename
+            var displayName = window.file_name_xml.split('/').pop().replace(/\.[^/.]+$/, "");
+            $("#score-filename").text(displayName);
+            
+            // Enable buttons
+            $("#score_buttons button").prop('disabled', false);
+            
+            // Load and render score with error handling
+            var scorePath = 'static/harmonisations/' + window.file_name_xml;
+            console.log('Loading score:', scorePath);
+            
+            // First clear the container and show loading state
+            $("#score_container").html(`
+                <div class="text-center text-neutral-600">
+                    <div class="loading-spinner mx-auto mb-4"></div>
+                    <p>Loading score...</p>
+                </div>
+            `);
+            
+            // Check if file exists before loading
+            $.get(scorePath)
+                .done(function(data) {
+                    // File exists and we have the content
+                    console.log('Score file found, initializing OSMD');
+                    
+                    // Clear container for OSMD
+                    $("#score_container").empty();
+                    
+                    // Create new promise chain
+                    return new Promise((resolve, reject) => {
+                        try {
+                            // Re-initialize OSMD
+                            osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("score_container", {
+                                autoResize: true,
+                                drawTitle: true,
+                                drawSubtitle: true,
+                                drawComposer: true,
+                                drawCredits: true,
+                                drawTimeSignatures: true,
+                                drawMeasureNumbers: true
+                            });
+                            
+                            // Wait for OSMD to be ready
+                            setTimeout(() => resolve(), 100);
+                        } catch (e) {
+                            reject(e);
+                        }
+                    })
+                    .then(() => {
+                        console.log('OSMD initialized, loading score');
+                        return osmd.load(scorePath);
+                    })
+                    .then(() => {
+                        console.log('Score loaded successfully');
+                        osmd.zoom = 0.8;
+                        return new Promise(resolve => setTimeout(resolve, 100));
+                    })
+                    .then(() => {
+                        console.log('Rendering score');
+                        osmd.render();
+                        console.log('Score rendered');
+                    })
+                    .catch(error => {
+                        console.error('Error in OSMD chain:', error);
+                        throw error;
+                    })
+                })
+                .fail(function() {
+                    console.error('Score file not found:', scorePath);
+                    $("#score_container").html(`
+                        <div class="text-center text-neutral-600">
+                            <i class="material-icons text-4xl mb-2">error_outline</i>
+                            <p>Score file not found.</p>
+                            <p class="text-sm mt-1">Please try harmonizing again.</p>
+                        </div>
+                    `);
+                })
+                .catch(function(error) {
+                    console.error('Error loading score:', error);
+                    $("#score_container").html(`
+                        <div class="text-center text-neutral-600">
+                            <i class="material-icons text-4xl mb-2">error_outline</i>
+                            <p>There was an error loading the score.</p>
+                            <p class="text-sm mt-1">Please try harmonizing again.</p>
+                        </div>
+                    `);
+                });
+        }, 5000);
         // console.log('file name is: ', file_name_xml);
         // setTimeout(function(){
         //     if(server_response_success){
@@ -189,7 +418,7 @@
 	
 	
 	
-	function select_idiom1(){
+    function select_idiom1(){
         idiom_name = document.getElementById("idiom_select1").value;
 		var allModes = initJson[idiom_name];
 		// delete all the previous options
@@ -203,7 +432,7 @@
         }	
     }
 	
-	function select_idiom2(){
+    function select_idiom2(){
         idiom_name = document.getElementById("idiom_select2").value;
 		var allModes = initJson[idiom_name];
 		// delete all the previous options
@@ -216,193 +445,274 @@
             document.getElementById("mode_select2").add(option);
         }	
     }
+
+    function updateUIByToggles(){
+        var enabled1 = document.getElementById('enable_style1').checked;
+        var enabled2 = document.getElementById('enable_style2').checked;
+        // enable/disable selects
+        document.getElementById('idiom_select1').disabled = !enabled1;
+        document.getElementById('mode_select1').disabled = !enabled1;
+        document.getElementById('idiom_select2').disabled = !enabled2;
+        document.getElementById('mode_select2').disabled = !enabled2;
+        // tonal diff only for blend
+        var td = document.getElementById('tonal_diff');
+        if (td){ td.disabled = !(enabled1 && enabled2); }
+    }
 	
 </script>    
 
-<div class="container">
+<div class="container max-w-6xl mx-auto px-4 text-neutral-200">
   <div class="section hero">
+    <div class="hero-inner">
+      <div class="hero-logo">
+        <span class="logo-text">CCM</span>
+        <span class="logo-highlight">GROUP</span>
+      </div>
+      <div class="hero-content">
+        <h3 class="app-title">Chameleon Harmoniser</h3>
+        <p class="app-subtitle">Minimal. Fast. Intelligent harmonisation and blending.</p>
+        <div class="hero-meta" style= "display: flex; justify-content: flex-end;">cognitive and computational musicology group<br/>school of music studies · aristotle university of thessaloniki</div>
+      </div>
+    </div>
   </div>
-  <div class="section">
-   <form id="upload-form" action="{{ url_for('upload') }}" method="POST" enctype="multipart/form-data">
-	<div class="row">
-	    <div class="col s12 mb35" ><h5 style="text-align:center">Upload a melody file in the required template format for testing harmonisation in the selected style</h5></div>
-		<div class=" mb35 col s6 offset-s3">
-			  <div class="file-field input-field">
-				  <div class="btn">
-					<span><i class="material-icons left">file_upload</i> Upload Melody</span>
-					<input id="file-picker" type="file" name="file" accept=".xml,.mxl">
-				  </div>
-				  <div class="file-path-wrapper">
-					<input class="file-path validate" type="text">
-					<div id="msg"></div>
-				  </div>
-				</div>
-		</div>
-	</div>
-	<div class="row">
-		<h6 style="text-align:center">Not sure how a template should look like? Have a look at <a href="http://ccm.web.auth.gr/melodyinput.html" target="_blank">this page</a> 
-		and/or download <a href="https://www.dropbox.com/s/nu9wxngvnw25k7n/beethovenR2.xml?dl=1" download>this example template file</a></h6>
-	</div>
-    </form>
-    <form id="all_parameters">
-	<div class="row">	
-		<div class="col s6 mb35">
-		    <div class="border-wrapper">
-				 <div class="input-field col s12 mb25">
-					<label>Style 1</label>
-					<select class="browser-default" id="idiom_select1" onchange="select_idiom1()">
-					</select>
-					
-				  </div>
-				  <div class="input-field col s12">
-					<label>Mode 1</label>
-					<select class="browser-default" id="mode_select1">
-					</select>
-					
-				  </div>
-			</div>
-		</div>
-		
-		<div class="col s6 mb35">
-			<div class="border-wrapper">
-			<div class="input-field col s12 mb25">
-			<label>Style 2</label>
-				<select class="browser-default" id="idiom_select2" onchange="select_idiom2()">
-				</select>
-				
-			  </div>
-			  <div class="input-field col s12">
-				<label>Mode 2</label>
-				<select class="browser-default" id="mode_select2">
-				</select>
-				
-			  </div>
-			</div>
-		</div>
-	</div>
-	<div class="row">
-		 <div class="col s6 offset-s3 mb35">
-			<div class="border-wrapper">
-				 <div class="input-field col s12">
-					<label>Tonal Difference</label>
-					<select class="browser-default" id="tonal_diff">
-					  <option value="0">0</option>
-					  <option value="1">1</option>
-					  <option value="2">2</option>
-					  <option value="3">3</option>
-					  <option value="4">4</option>
-					  <option value="5">5</option>
-					  <option value="6">6</option>
-					  <option value="7">7</option>
-					  <option value="8">8</option>
-					  <option value="9">9</option>
-					  <option value="10">10</option>
-					  <option value="11">11</option>
-					</select>
-					
-				  </div>
-			  </div>
-		 </div>
-	</div>
-	<div class="row">
-	  
-	  <div class="col s6">
-		  <div class="border-wrapper">	
-			<span class="label">Options</span>
-				<div class="input-field col s12">
-				<p>
-				  <label>
-					<input type="checkbox" id="groupingCheckbox"/>
-					<span>Use Chord Families </span>
-				  </label>
-				</p>
-				
-			  </div>
-			  <div class="input-field col s12">
-			    <label>Voice Leading</label>
-				<select class="browser-default" id="voice_leading_select">				 
-				  <option value="NoVL">NoVL</option>
-				  <option value="BBVL">BBVL</option>
-				</select>
-				
-			  </div>
-			</div>
-		</div>
-		 <div class="col s6 submit-area">
-			<div class="border-wrapper">
-			 <div class=" col s6">
-				<span class="label">Harmonise</span>
-				<p>
-				 <label>
-					<input id="radioStyle1" name="styles" value="Style1" type="radio" checked onclick="radioClick(this);" />
-					<span>Style 1</span>
-				  </label>
-				</p>
-				<p>
-				 <label>
-					<input id="radioStyle2" name="styles" value="Style2" type="radio" onclick="radioClick(this);" />
-					<span>Style 2</span>
-				  </label>
-				</p>
-				<p>
-				 <label>
-					<input id="radioBlend" name="styles" value="Blend" type="radio" onclick="radioClick(this);" />
-					<span>Blend</span>
-				  </label>
-				</p>
-			  </div>
-			  <div class="input-field col s6">
-				   <button class="btn mt50 btn-large waves-effect waves-light" id="harmonise" type="button"  name="action" onclick="submit_form()" onsubmit="return false">Harmonise
-						<i class="material-icons right">send</i>
-					  </button>
-			  </div>
-			</div>
-		</div>
-	</div>
 
-	</form>
-		
+  
+
+  <div class="cm-panel mx-auto">
+  <div class="cm-card">
+    <form id="upload-form" action="{{ url_for('upload') }}" method="POST" enctype="multipart/form-data">
+      <div class="cm-card-title flex items-center font-bold text-neutral-800 mb-4"><i class="material-icons mr-2">file_upload</i>Upload your melody (XML/MXL)</div>
+      <div class="dropzone-wrapper">
+        <div id="drop-zone" class="flex flex-col items-center justify-center p-8 border-2 border-dashed border-neutral-200 rounded-lg bg-white bg-opacity-50 hover:bg-opacity-75 transition-all cursor-pointer">
+          <i class="material-icons text-4xl text-neutral-400 mb-3">cloud_upload</i>
+          <p class="text-neutral-600 font-medium mb-1">Drag & drop your file here</p>
+          <p class="text-sm text-neutral-500">or click to browse</p>
+          <input id="file-picker" type="file" name="file" accept=".xml,.mxl" class="hidden">
+        </div>
+        <div id="file-info" class="hidden mt-4 p-4 rounded-lg bg-white bg-opacity-75 border border-neutral-200">
+          <div class="flex items-center gap-3">
+            <i class="material-icons text-neutral-500">description</i>
+            <span id="file-name" class="text-sm text-neutral-600 font-medium flex-1"></span>
+            <button onclick="clearFile()" class="text-neutral-400 hover:text-neutral-600">
+              <i class="material-icons">close</i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div id="msg" class="text-sm text-neutral-600 mt-2"></div>
+      <div class="cm-help mt-3 text-neutral-600">Need a template? See <a class="underline hover:text-black" href="http://ccm.web.auth.gr/melodyinput.html" target="_blank">format guide</a> or download <a class="underline hover:text-black" href="https://www.dropbox.com/s/nu9wxngvnw25k7n/beethovenR2.xml?dl=1" download>example file</a>.</div>
+    </form>
+  </div>
+
+  <div class="cm-card mt-4">
+    <form id="all_parameters">
+      <div class="cm-card-title flex items-center font-bold text-neutral-800 mb-2"><i class="material-icons mr-2">tune</i>Styles & Options</div>
+
+      <div class="cm-subtitle text-neutral-600 font-semibold mb-2">Style Options</div>
+      <div id="style-config" class="cm-grid grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <div class="toggle-row">
+            <label class="switch">
+              <input type="checkbox" id="enable_style1" checked>
+              <span class="slider"></span>
+            </label>
+            <span class="toggle-label">Enable Style 1</span>
+          </div>
+          <div class="mb-3">
+            <label class="block text-sm font-semibold text-neutral-600 mb-1">Style 1</label>
+            <select class="block w-full rounded-lg border border-neutral-200 px-4 py-2.5 bg-white bg-opacity-95 text-neutral-800" id="idiom_select1" onchange="select_idiom1()"></select>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-neutral-600 mb-1">Mode 1</label>
+            <select class="block w-full rounded-lg border border-neutral-200 px-4 py-2.5 bg-white bg-opacity-95 text-neutral-800" id="mode_select1"></select>
+          </div>
+        </div>
+
+        <div>
+          <div class="toggle-row">
+            <label class="switch">
+              <input type="checkbox" id="enable_style2">
+              <span class="slider"></span>
+            </label>
+            <span class="toggle-label">Enable Style 2 (Blend)</span>
+          </div>
+          <div class="mb-3">
+            <label class="block text-sm font-semibold text-neutral-600 mb-1">Style 2</label>
+            <select class="block w-full rounded-lg border border-neutral-200 px-4 py-2.5 bg-white bg-opacity-95 text-neutral-800" id="idiom_select2" onchange="select_idiom2()"></select>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-neutral-600 mb-1">Mode 2</label>
+            <select class="block w-full rounded-lg border border-neutral-200 px-4 py-2.5 bg-white bg-opacity-95 text-neutral-800" id="mode_select2"></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="cm-divider my-4"></div>
+      <div class="cm-subtitle text-center text-neutral-600 font-semibold mb-2">General Options</div>
+      <div id="general-options" class="max-w-2xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-semibold text-neutral-600 mb-1">Tonal Difference (Blend)</label>
+          <input type="number" min="0" max="12" step="1" id="tonal_diff" class="w-24 rounded-lg border border-neutral-200 px-4 py-2.5 bg-white bg-opacity-95 text-neutral-800" value="0">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-neutral-600 mb-1">Voice Leading</label>
+          <select class="block w-full rounded-lg border border-neutral-200 px-4 py-2.5 bg-white bg-opacity-95 text-neutral-800" id="voice_leading_select">
+            <option value="NoVL">NoVL</option>
+            <option value="BBVL">BBVL</option>
+          </select>
+        </div>
+        <div class="md:col-span-2">
+          <label class="inline-flex items-center gap-2 text-neutral-600">
+            <input type="checkbox" id="groupingCheckbox" class="h-4 w-4 rounded border-neutral-700 bg-neutral-900"/>
+            <span>Use Chord Families</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="cta-row flex justify-end mt-6">
+        <button class="harmonise-btn inline-flex items-center justify-center rounded-lg bg-white text-black hover:bg-black hover:text-white px-6 py-3 font-semibold shadow-lg border border-neutral-200 hover:border-neutral-700 transition-all duration-200 disabled:opacity-50 disabled:hover:bg-white disabled:hover:text-black disabled:cursor-not-allowed" id="harmonise" type="button" name="action" onclick="submit_form()" onsubmit="return false">Harmonise<i class="material-icons ml-2">send</i></button>
+      </div>
+    </form>
+  </div>
+  </div>
 </div>
 </div>
-<div class="container" id="results">
-	<h6 style="text-align:center" id="score_info"></h6>
-	<div id="score_play_show">
-			<div class="row mb50 text-center" id="score_buttons">
-			 <a class="waves-effect waves-light btn-large" onclick="playMidi()"><i class="material-icons left">play_arrow</i>play</a>
-			 <a class="waves-effect waves-light btn-large" onclick="stopMidi()"><i class="material-icons left">stop</i>stop</a>
-			 <a class="waves-effect waves-light btn-large" id="downloadXML"><i class="material-icons left">file_download</i>download</a>
-			</div>
-		<div class="row mb50 text-center">
-		    <div id="score_container"></div>
-			<a class="waves-effect waves-light btn-large" onclick="returnBack()"><i class="material-icons left">home</i>Harmonise Again!</a>
-		</div>
-	</div>
-</div>
- <script src="/static/js/materialize.min.js"></script>
- <script src="/static/js/scripts.js"></script>
+  <div class="container max-w-6xl mx-auto px-4" id="results">
+    <div class="cm-card mt-12">
+      <div class="text-center">
+        <h3 id="score_info" class="text-xl font-semibold text-neutral-800 mb-8"></h3>
+        
+        <div id="score_play_show">
+          <div class="score-wrapper mb-8">
+            <div class="score-header flex items-center justify-between p-4 bg-black bg-opacity-5 border-b border-neutral-200">
+              <div class="flex items-center">
+                <i class="material-icons text-neutral-600 mr-2">music_note</i>
+                <span class="text-sm font-medium text-neutral-800" id="score-filename">Your harmonized melody</span>
+              </div>
+              <div class="text-sm text-neutral-600">Powered by OpenSheetMusicDisplay</div>
+            </div>
+            <div class="score-content p-8 bg-white">
+              <div id="score_container" class="min-h-[400px] flex items-center justify-center">
+                <div class="text-center text-neutral-600">
+                  <i class="material-icons text-4xl mb-2">music_note</i>
+                  <p>Your harmonized score will appear here</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-center gap-4 mb-8" id="score_buttons">
+            <button id="play-btn" onclick="playMidi()" class="inline-flex items-center justify-center px-6 py-3 bg-white text-black hover:bg-black hover:text-white rounded-lg font-semibold border border-neutral-200 hover:border-neutral-700 transition-all duration-200" disabled>
+              <i class="material-icons mr-2">play_arrow</i><span>Play</span>
+            </button>
+            <button onclick="stopMidi()" class="inline-flex items-center justify-center px-6 py-3 bg-white text-black hover:bg-black hover:text-white rounded-lg font-semibold border border-neutral-200 hover:border-neutral-700 transition-all duration-200" disabled>
+              <i class="material-icons mr-2">stop</i>Stop
+            </button>
+            <button id="downloadXML" class="inline-flex items-center justify-center px-6 py-3 bg-white text-black hover:bg-black hover:text-white rounded-lg font-semibold border border-neutral-200 hover:border-neutral-700 transition-all duration-200" disabled>
+              <i class="material-icons mr-2">file_download</i>Download Score
+            </button>
+          </div>
+
+          <button onclick="returnBack()" class="inline-flex items-center justify-center px-6 py-3 bg-white text-black hover:bg-black hover:text-white rounded-lg font-semibold border border-neutral-200 hover:border-neutral-700 transition-all duration-200">
+            <i class="material-icons mr-2">home</i>Harmonise Again
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+ 
  
 </body>
 <script>
-    $("#file-picker").change(function(){
-        console.log('file selected');
-        input = document.getElementById('file-picker');
-        for (var i=0; i<input.files.length; i++)
-        {
-        //koala.jpg, koala.JPG substring(index) lastIndexOf('a') koala.1.jpg
-            var ext= input.files[i].name.substring(input.files[i].name.lastIndexOf('.')+1).toLowerCase()
-            if ((ext == 'xml') || (ext == 'mxl'))
-            {
-                $("#msg").text("The file is supported!")
-				document.getElementById('harmonise').disabled = false;
-            }
-            else
-            {
-                $("#msg").text("The file is NOT supported")
-                document.getElementById("file-picker").value ="";
-				document.getElementById('harmonise').disabled = true;
-            }
+    function handleFile(file) {
+        if (!file) {
+            clearFile();
+            return;
         }
-    } );
+        
+        var ext = file.name.substring(file.name.lastIndexOf('.')+1).toLowerCase();
+        if ((ext == 'xml') || (ext == 'mxl')) {
+            // Validate file exists
+            var reader = new FileReader();
+            reader.onload = function() {
+                $("#msg").text("The file is supported!");
+                document.getElementById('harmonise').disabled = false;
+                
+                // Show file info
+                $("#file-name").text(file.name);
+                $("#file-info").removeClass("hidden");
+                $("#drop-zone").addClass("border-neutral-300 bg-opacity-75");
+            };
+            reader.onerror = function() {
+                $("#msg").text("Error reading file");
+                clearFile();
+            };
+            reader.readAsArrayBuffer(file);
+        } else {
+            $("#msg").text("The file is NOT supported");
+            clearFile();
+        }
+    }
+
+    function clearFile() {
+        document.getElementById("file-picker").value = "";
+        $("#file-info").addClass("hidden");
+        $("#file-name").text("");
+        $("#drop-zone").removeClass("border-neutral-300 bg-opacity-75");
+        document.getElementById('harmonise').disabled = true;
+        $("#msg").text("");
+    }
+
+    // File input change handler
+    $("#file-picker").change(function(){
+        input = this;  // Set the global input variable
+        handleFile(this.files[0]);
+    });
+
+    // Drag and drop handlers
+    const dropZone = document.getElementById('drop-zone');
+
+    dropZone.addEventListener('click', () => {
+        document.getElementById('file-picker').click();
+    });
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+        document.body.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, highlight, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, unhighlight, false);
+    });
+
+    function highlight(e) {
+        dropZone.classList.add('border-neutral-400', 'bg-opacity-90');
+    }
+
+    function unhighlight(e) {
+        dropZone.classList.remove('border-neutral-400', 'bg-opacity-90');
+    }
+
+    dropZone.addEventListener('drop', handleDrop, false);
+
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const file = dt.files[0];
+        
+        var filePicker = document.getElementById('file-picker');
+        filePicker.files = dt.files;
+        input = filePicker;  // Set the global input variable
+        handleFile(file);
+    }
     var checkboxChanged = function(chbx){
         useGrouping = chbx.checked;
         // send_grouping_to_server();
@@ -411,22 +721,64 @@
         });
     };
     function playMidi(){
-        console.log('playing file: ', 'static/harmonisations/'+file_name_mid);
-        MIDIjs.stop();
-        MIDIjs.play('static/harmonisations/'+file_name_mid);
+        if (!window.file_name_mid) {
+            console.error('No MIDI file available');
+            return;
+        }
+        
+        var midiPath = 'static/harmonisations/' + window.file_name_mid;
+        console.log('Playing file:', midiPath);
+        
+        try {
+            MIDIjs.stop();
+            MIDIjs.play(midiPath, function(e) {
+                if (e && e.type === 'error') {
+                    console.error('Error playing MIDI:', e);
+                    return;
+                }
+                // Update button state only if play successful
+                $("#play-btn").addClass('playing').find('.material-icons').text('pause');
+            });
+        } catch (error) {
+            console.error('Error initializing MIDI playback:', error);
+        }
     };
+
     function stopMidi(){
         MIDIjs.stop();
+        // Reset button state
+        $("#play-btn").removeClass('playing').find('.material-icons').text('play_arrow');
     };
 	
-	$("#downloadXML").click(function(e) {
-	download_file('static/harmonisations/'+file_name_xml, 'static/harmonisations/'+file_name_xml);
+    $("#downloadXML").click(function(e) {
+        e.preventDefault();
+        if (!file_name_xml) {
+            console.error('No XML file available');
+            return;
+        }
+        
+        // Create a temporary link and trigger download
+        var link = document.createElement('a');
+        link.href = 'static/harmonisations/' + file_name_xml;
+        link.download = file_name_xml.split('/').pop(); // Just the filename
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     });
 
-	function radioClick(r){
-		radio_option = r.value;
-		console.log('radio_option: ', radio_option);
-	}
+    // toggles handlers
+    $(document).on('change', '#enable_style1, #enable_style2', function(){
+        updateUIByToggles();
+    });
+
+    // no tabs: keep both sections visible
+
+    // show selected file name in input
+    $(document).on('change', '#file-picker', function(){
+        var name = this.files && this.files.length ? this.files[0].name : '';
+        var tgt = document.getElementById('file-name-display');
+        if (tgt){ tgt.value = name; }
+    });
 	
 	function download_file(fileURL, fileName) {
     // for non-IE
@@ -461,23 +813,55 @@
 	
 	
 	function returnBack(){
+		// Stop any playing music
 		MIDIjs.stop();
+		
+		// Hide results
 		$("#results").fadeOut(1500);
-		$("#upload-form").fadeIn(1500); 
-		$("#all_parameters").fadeIn(2000);
-		// reset default page params
-		// initialise grouping checkbox
-        document.getElementById('groupingCheckbox').checked = false;
+		
+		// Show forms
+		$("#upload-form").closest('.cm-card').fadeIn(1500); 
+		$("#all_parameters").closest('.cm-card').fadeIn(2000);
+		
+		// Reset OSMD
+		if (osmd) {
+			try {
+				$("#score_container").empty();
+				osmd = null;
+			} catch (e) {
+				console.log('Error resetting OSMD:', e);
+			}
+		}
+		
+		// Restore previous state
+		setTimeout(() => {
+			restoreState();
+		}, 1600);
+		
+		// Reset all form controls
+		document.getElementById('groupingCheckbox').checked = false;
 		document.getElementById('harmonise').disabled = true;
-		// initialise radiobuttons
-		document.getElementById('radioStyle1').checked = true;
-		// initialise dropdown menus
-		document.getElementById("idiom_select1").selectedIndex = "0";
-		document.getElementById("idiom_select2").selectedIndex = "0";
-		document.getElementById("mode_select1").selectedIndex = "0";
-		document.getElementById("mode_select2").selectedIndex = "0";
-		document.getElementById("tonal_diff").selectedIndex = "0";
+		
+		// Reset toggles
+		document.getElementById('enable_style1').checked = true;
+		document.getElementById('enable_style2').checked = false;
+		updateUIByToggles();
+		
+		// Reset dropdowns
+		document.getElementById("idiom_select1").selectedIndex = 0;
+		document.getElementById("idiom_select2").selectedIndex = 0;
+		document.getElementById("mode_select1").selectedIndex = 0;
+		document.getElementById("mode_select2").selectedIndex = 0;
+		document.getElementById("tonal_diff").value = "0";
 		document.getElementById("voice_leading_select").value = "NoVL";
+		
+		// Reset score container
+		$("#score_container").html(`
+			<div class="text-center text-neutral-600">
+				<i class="material-icons text-4xl mb-2">music_note</i>
+				<p>Your harmonized score will appear here</p>
+			</div>
+		`);
 	};
 </script>
 </html>
