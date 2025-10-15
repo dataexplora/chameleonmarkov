@@ -75,11 +75,6 @@ def make_harmonisation_stream(m, idiom):
         harmonic_rhythm_part.partName = harmonic_rhythm_part.partName or 'Harmony'
         # Ensure stable, consecutive part IDs
         harmonic_rhythm_part.id = 'P2'
-        # Shift harmony one octave down for readability (fewer ledger lines)
-        try:
-            harmonic_rhythm_part.transpose(-12, inPlace=True)
-        except Exception:
-            pass
     except Exception:
         pass
 

@@ -24,6 +24,7 @@
 	
 	var initJson;
 	var keys = [];
+    var osmd;
     var my_ID = ID();
     $(document).ready(function(){
         // initialise grouping checkbox
@@ -350,13 +351,13 @@
                         try {
                             // Re-initialize OSMD
                             osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("score_container", {
-                                autoResize: true,
                                 drawTitle: true,
                                 drawSubtitle: true,
                                 drawComposer: true,
                                 drawCredits: true,
                                 drawTimeSignatures: true,
-                                drawMeasureNumbers: true
+                                drawMeasureNumbers: true,
+                                autoResize: false
                             });
                             
                             // Wait for OSMD to be ready
@@ -377,6 +378,9 @@
                     .then(() => {
                         console.log('Rendering score');
                         osmd.render();
+                        if (osmd && typeof osmd.setOptions === 'function') {
+                            osmd.setOptions({ autoResize: true });
+                        }
                         console.log('Score rendered');
                     })
                     .catch(error => {
@@ -619,9 +623,15 @@
             <button onclick="stopMidi()" class="inline-flex items-center justify-center px-6 py-3 bg-white text-black hover:bg-black hover:text-white rounded-lg font-semibold border border-neutral-200 hover:border-neutral-700 transition-all duration-200" disabled>
               <i class="material-icons mr-2">stop</i>Stop
             </button>
-            <button id="downloadXML" class="inline-flex items-center justify-center px-6 py-3 bg-white text-black hover:bg-black hover:text-white rounded-lg font-semibold border border-neutral-200 hover:border-neutral-700 transition-all duration-200" disabled>
-              <i class="material-icons mr-2">file_download</i>Download Score
-            </button>
+              <button id="downloadXML" class="inline-flex items-center justify-center px-6 py-3 bg-white text-black hover:bg-black hover:text-white rounded-lg font-semibold border border-neutral-200 hover:border-neutral-700 transition-all duration-200" disabled>
+                <i class="material-icons mr-2">file_download</i>Download Score
+              </button>
+              <button id="downloadMIDI" class="inline-flex items-center justify-center px-6 py-3 bg-white text-black hover:bg-black hover:text-white rounded-lg font-semibold border border-neutral-200 hover:border-neutral-700 transition-all duration-200" disabled>
+                <i class="material-icons mr-2">music_note</i>Download MIDI
+              </button>
+              <button id="downloadPNG" class="inline-flex items-center justify-center px-6 py-3 bg-white text-black hover:bg-black hover:text-white rounded-lg font-semibold border border-neutral-200 hover:border-neutral-700 transition-all duration-200" disabled>
+                <i class="material-icons mr-2">image</i>Download PNG
+              </button>
           </div>
 
           <button onclick="returnBack()" class="inline-flex items-center justify-center px-6 py-3 bg-white text-black hover:bg-black hover:text-white rounded-lg font-semibold border border-neutral-200 hover:border-neutral-700 transition-all duration-200">
@@ -776,6 +786,20 @@
         link.click();
         document.body.removeChild(link);
     });
+    
+    $("#downloadMIDI").click(function(e) {
+        e.preventDefault();
+        if (!file_name_mid) {
+            console.error('No MIDI file available');
+            return;
+        }
+        var link = document.createElement('a');
+        link.href = 'static/harmonisations/' + file_name_mid;
+        link.download = file_name_mid.split('/').pop();
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    });
 
     // toggles handlers
     $(document).on('change', '#enable_style1, #enable_style2', function(){
@@ -790,7 +814,100 @@
         var tgt = document.getElementById('file-name-display');
         if (tgt){ tgt.value = name; }
     });
-	
+
+    $(document).on('click', '#downloadPNG', function(e){
+        e.preventDefault();
+        if (!osmd) {
+            console.error('No rendered score available');
+            return;
+        }
+        try {
+            const svgElement = document.querySelector('#score_container svg');
+            if (!svgElement) {
+                console.error('No SVG found for export');
+                return;
+            }
+            const svgClone = svgElement.cloneNode(true);
+            svgClone.setAttribute('xmlns', svgClone.getAttribute('xmlns') || 'http://www.w3.org/2000/svg');
+
+            const parseDimension = (attrVal) => {
+                if (!attrVal) return NaN;
+                const numeric = parseFloat(attrVal.toString().replace(/[^0-9.\-]/g, ''));
+                return isNaN(numeric) ? NaN : numeric;
+            };
+
+            let svgWidth = parseDimension(svgClone.getAttribute('width'));
+            let svgHeight = parseDimension(svgClone.getAttribute('height'));
+            const viewBox = svgClone.getAttribute('viewBox');
+            if ((!svgWidth || !svgHeight) && viewBox) {
+                const vbParts = viewBox.split(/\s+/);
+                if (vbParts.length === 4) {
+                    svgWidth = parseFloat(vbParts[2]);
+                    svgHeight = parseFloat(vbParts[3]);
+                }
+            }
+            if ((!svgWidth || !svgHeight) && typeof svgElement.getBBox === 'function') {
+                const bbox = svgElement.getBBox();
+                if (bbox && bbox.width && bbox.height) {
+                    svgWidth = bbox.width;
+                    svgHeight = bbox.height;
+                }
+            }
+            if (!svgWidth || !svgHeight) {
+                svgWidth = svgElement.clientWidth || 1200;
+                svgHeight = svgElement.clientHeight || 1200;
+            }
+            svgClone.setAttribute('width', svgWidth);
+            svgClone.setAttribute('height', svgHeight);
+
+            const serializer = new XMLSerializer();
+            const svgString = serializer.serializeToString(svgClone);
+            const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(svgBlob);
+            const img = new Image();
+            img.onload = function() {
+                try {
+                    const canvas = document.createElement('canvas');
+                    const deviceRatio = window.devicePixelRatio || 1;
+                    canvas.width = Math.ceil(svgWidth * deviceRatio);
+                    canvas.height = Math.ceil(svgHeight * deviceRatio);
+                    canvas.style.width = svgWidth + 'px';
+                    canvas.style.height = svgHeight + 'px';
+                    const ctx = canvas.getContext('2d');
+                    ctx.setTransform(deviceRatio, 0, 0, deviceRatio, 0, 0);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, svgWidth, svgHeight);
+                    ctx.drawImage(img, 0, 0, svgWidth, svgHeight);
+                    URL.revokeObjectURL(url);
+                    canvas.toBlob(function(blob){
+                        if (!blob) {
+                            console.error('Failed to create PNG blob');
+                            return;
+                        }
+                        const downloadUrl = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        const baseName = (window.file_name_xml || 'score').split('/').pop().replace(/\.[^/.]+$/, '');
+                        link.href = downloadUrl;
+                        link.download = baseName + '.png';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(downloadUrl);
+                    }, 'image/png');
+                } catch (err) {
+                    console.error('Error exporting PNG:', err);
+                }
+            };
+            img.onerror = function(err) {
+                console.error('Unable to load SVG for PNG export', err);
+                URL.revokeObjectURL(url);
+            };
+            img.src = url;
+        } catch (error) {
+            console.error('Error during PNG export:', error);
+        }
+    });
+
 	function download_file(fileURL, fileName) {
     // for non-IE
     if (!window.ActiveXObject) {
