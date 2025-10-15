@@ -80,9 +80,38 @@ def zipdir(path, ziph):
         for file in files:
             ziph.write(os.path.join(root, file))
 
+def safe_replace(src: str, dst: str) -> None:
+    """Atomically replace dst with src if dst exists.
+
+    Windows os.rename fails if dst exists; use os.replace with a fallback.
+    """
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    try:
+        os.replace(src, dst)
+    except Exception:
+        try:
+            if os.path.exists(dst):
+                try:
+                    os.remove(dst)
+                except Exception:
+                    pass
+            shutil.move(src, dst)
+        except Exception as e:
+            raise e
+
 @app.route("/")
 def index():
     return render_template("index.html")
+
+# Serve bundled vendor assets that live under templates/static/ (legacy layout)
+@app.route("/vendor/opensheetmusicdisplay.min.js")
+def serve_osmd():
+    try:
+        local_path = os.path.join(APP_ROOT, 'templates', 'static', 'js', 'opensheetmusicdisplay.min.js')
+        return send_file(local_path)
+    except Exception:
+        # Fallback: 404 to let the browser fail clearly
+        return ('', 404)
 
 @app.route("/", methods=['POST'])
 def upload():
@@ -170,7 +199,7 @@ def upload():
     # change the name by adding the code
     output_file_name = m.name+name_suffix+'.xml'
     # output_file_name = m.name+'_'+idiom_name+'_'+'grp'+str(int(useGrouping))+'_'+request_code+'.xml'
-    os.rename('server_harmonised_output/'+initial_output_file_name, 'server_harmonised_output/'+output_file_name)
+    safe_replace('server_harmonised_output/'+initial_output_file_name, 'server_harmonised_output/'+output_file_name)
     output_file_with_path = 'server_harmonised_output/'+output_file_name
 
     # also write midi

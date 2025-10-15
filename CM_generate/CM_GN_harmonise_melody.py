@@ -15,6 +15,13 @@ import CM_user_output_functions as uof
 import os
 cwd = os.getcwd()
 import sys
+import numpy as _np
+# Compatibility shim for old pickles referencing deprecated numpy module paths
+try:
+    import numpy.core.numeric as _np_numeric
+    sys.modules['numpy._core.numeric'] = _np_numeric  # some pickles expect this name
+except Exception:
+    pass
 # use folder of printing functions
 sys.path.insert(0, cwd + '/CM_logging')
 import harmonisation_printer as prt

@@ -12,7 +12,8 @@ import copy
 # import NN_VL_model as nnvl
 
 def make_harmonisation_stream(m, idiom):
-    output_stream = m21.stream.Stream()
+    # Build a proper score so MusicXML exporters/renderers (e.g., OSMD) respect part attributes
+    output_stream = m21.stream.Score()
     melody_part = m.input_stream.parts[0]
     harmonic_rhythm_part = copy.deepcopy( m.input_stream.parts[2] )
     # concatenate all chord segments from all phrases
@@ -39,8 +40,66 @@ def make_harmonisation_stream(m, idiom):
                     pp.accidental = None
             note.activeSite.replace(note, chord_segments[tmp_count].chord)
             tmp_count += 1
-    output_stream.insert( 0, melody_part )
-    output_stream.insert( 0, harmonic_rhythm_part )
+    # Enforce explicit clefs/names; remove any existing clefs from the parts and set at measure 1
+    try:
+        # Clear existing clefs on melody
+        for c in list(melody_part.recurse().getElementsByClass(m21.clef.Clef)):
+            try:
+                c.activeSite.remove(c)
+            except Exception:
+                pass
+        # Insert Treble clef at start of first measure (or part if no measures yet)
+        m1 = melody_part.measure(1)
+        if m1 is not None:
+            m1.insert(0, m21.clef.TrebleClef())
+        else:
+            melody_part.insert(0, m21.clef.TrebleClef())
+        melody_part.partName = melody_part.partName or 'Melody'
+        # Ensure stable, consecutive part IDs for MusicXML consumers (e.g., OSMD)
+        melody_part.id = 'P1'
+    except Exception:
+        pass
+    try:
+        # Clear existing clefs on harmony
+        for c in list(harmonic_rhythm_part.recurse().getElementsByClass(m21.clef.Clef)):
+            try:
+                c.activeSite.remove(c)
+            except Exception:
+                pass
+        # Insert Bass clef at start of first measure (or part if no measures yet)
+        h1 = harmonic_rhythm_part.measure(1)
+        if h1 is not None:
+            h1.insert(0, m21.clef.BassClef())
+        else:
+            harmonic_rhythm_part.insert(0, m21.clef.BassClef())
+        harmonic_rhythm_part.partName = harmonic_rhythm_part.partName or 'Harmony'
+        # Ensure stable, consecutive part IDs
+        harmonic_rhythm_part.id = 'P2'
+        # Shift harmony one octave down for readability (fewer ledger lines)
+        try:
+            harmonic_rhythm_part.transpose(-12, inPlace=True)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+    # Remove any key signatures/keys (keyless output expected by UI/engraving)
+    try:
+        for part in (melody_part, harmonic_rhythm_part):
+            for obj in list(part.recurse().getElementsByClass((m21.key.KeySignature, m21.key.Key))):
+                try:
+                    obj.activeSite.remove(obj)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    # Note: Avoid inserting StaffGroup/brace - some renderers (OSMD) mis-handle
+    # part-group braces across separate parts and may fail to render silently.
+
+    # Insert parts into the score
+    output_stream.insert(0, melody_part)
+    output_stream.insert(0, harmonic_rhythm_part)
     m.output_stream = output_stream
     return m
 # end make_harmonisation_stream

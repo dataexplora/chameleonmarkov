@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
  <script type='text/javascript' src='//www.midijs.net/lib/midi.js'></script>
- <script src="/static/js/opensheetmusicdisplay.min.js"></script>
+ <script src="/vendor/opensheetmusicdisplay.min.js"></script>
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
@@ -41,24 +41,8 @@
 		document.getElementById("mode_select2").selectedIndex = "0";
 		document.getElementById("tonal_diff").selectedIndex = "0";
 		document.getElementById("voice_leading_select").value = "NoVL";
-        // Initialize OSMD with options
-        osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("score_container", {
-            autoResize: true,
-            drawTitle: true,
-            drawSubtitle: true,
-            drawComposer: true,
-            drawLyricist: true,
-            drawCredits: true,
-            drawMetronomeMarks: true,
-            drawTimeSignatures: true,
-            drawMeasureNumbers: true,
-            drawFingerings: true,
-            drawLyrics: true,
-            drawSlurs: true,
-            drawDynamics: true,
-            drawHiddenNotes: false,
-            drawHints: true
-        });
+        // Do NOT initialize OSMD here. We create it right before loading XML
+        // to avoid any early render attempts before a score is loaded.
 		document.getElementById('results').style.display = 'none';
         // request list of idiom names from server
         var dummy_json = {
@@ -113,15 +97,31 @@
         var enabled1 = document.getElementById('enable_style1').checked;
         var enabled2 = document.getElementById('enable_style2').checked;
         var harmType = 'Style1';
-		
+
         // compute behaviour based on toggles
         if (!enabled1 && !enabled2){
             alert('Please enable Style 1 or Style 2 to proceed.');
             return;
         }
-		var idiom_name = [];
-		var mode_name = [];
-		var ton_diff = [];
+        var idiom_name = [];
+        var mode_name = [];
+        var ton_diff = [];
+        // helper: canonicalize mode labels to match filesystem naming (no commas)
+        function canonicalModeLabel(val){
+            if (Array.isArray(val)){
+                return '[' + val.join(' ') + ']';
+            }
+            if (typeof val === 'string'){
+                // Some browsers stringify arrays as "0,2,3,..." or "[0, 2, 3]"
+                var s = val;
+                // drop commas
+                s = s.replace(/,/g, '');
+                // normalize spaces
+                s = s.replace(/\s+/g, ' ').trim();
+                return s;
+            }
+            return String(val);
+        }
         if (enabled1 && enabled2){
             // Blend: ensure non-Auto modes
             if (mode1_name=="Auto" && document.getElementById("mode_select1").options.length>1){
@@ -130,10 +130,13 @@
             if (mode2_name=="Auto" && document.getElementById("mode_select2").options.length>1){
                 mode2_name = document.getElementById("mode_select2").options[1].value;
             }
-			ton_diff = tonal_diff;
-			console.log('ton_diff: ', ton_diff);
-			idiom_name = 'bl_' + idiom1_name + mode1_name + '_D' + ton_diff + '_' + idiom2_name + mode2_name;
-			mode_name = "Auto";
+            // canonicalize both mode labels for filename matching
+            mode1_name = canonicalModeLabel(mode1_name);
+            mode2_name = canonicalModeLabel(mode2_name);
+            ton_diff = tonal_diff;
+            console.log('ton_diff: ', ton_diff);
+            idiom_name = 'bl_' + idiom1_name + mode1_name + '_D' + ton_diff + '_' + idiom2_name + mode2_name;
+            mode_name = "Auto";
             harmType = 'Blend';
         }else if (enabled1){
 			idiom_name = idiom1_name;
@@ -334,7 +337,7 @@
             `);
             
             // Check if file exists before loading
-            $.get(scorePath)
+                $.get(scorePath)
                 .done(function(data) {
                     // File exists and we have the content
                     console.log('Score file found, initializing OSMD');
@@ -363,8 +366,8 @@
                         }
                     })
                     .then(() => {
-                        console.log('OSMD initialized, loading score');
-                        return osmd.load(scorePath);
+                        console.log('OSMD initialized, loading score from fetched XML');
+                        return osmd.load(data); // pass XML content directly to avoid URL encoding issues
                     })
                     .then(() => {
                         console.log('Score loaded successfully');
