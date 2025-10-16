@@ -266,6 +266,22 @@
         }
     }
 
+    // Poll for score file until it is available, then return its XML contents
+    function waitForScore(url, opts){
+        opts = opts || {};
+        var tries = (typeof opts.tries === 'number') ? opts.tries : 100; // ~30s with 300ms delay
+        var delay = (typeof opts.delay === 'number') ? opts.delay : 300;
+        return new Promise(function(resolve, reject){
+            function attempt(n){
+                $.get(url).done(function(data){ resolve(data); }).fail(function(){
+                    if(n <= 0){ return reject(new Error('timeout waiting score')); }
+                    setTimeout(function(){ attempt(n-1); }, delay);
+                });
+            }
+            attempt(tries);
+        });
+    }
+
     function submit_form(){
         // Save current state
         saveCurrentState();
@@ -337,9 +353,9 @@
                 </div>
             `);
             
-            // Check if file exists before loading
-                $.get(scorePath)
-                .done(function(data) {
+            // Check if file exists before loading (with polling for slow blends)
+                waitForScore(scorePath)
+                .then(function(data) {
                     // File exists and we have the content
                     console.log('Score file found, initializing OSMD');
                     
@@ -388,7 +404,7 @@
                         throw error;
                     })
                 })
-                .fail(function() {
+                .catch(function() {
                     console.error('Score file not found:', scorePath);
                     $("#score_container").html(`
                         <div class="text-center text-neutral-600">
