@@ -72,6 +72,23 @@ def make_harmonisation_stream(m, idiom):
             h1.insert(0, m21.clef.BassClef())
         else:
             harmonic_rhythm_part.insert(0, m21.clef.BassClef())
+        # Conditional transpose: if lowest harmony note > D3, bring harmony down an octave
+        try:
+            lowest_harmony_midi = None
+            for el in harmonic_rhythm_part.recurse().notesAndRests:
+                if isinstance(el, m21.chord.Chord):
+                    tmp_min = min(p.midi for p in el.pitches)
+                elif isinstance(el, m21.note.Note):
+                    tmp_min = el.pitch.midi
+                else:
+                    continue
+                if lowest_harmony_midi is None or tmp_min < lowest_harmony_midi:
+                    lowest_harmony_midi = tmp_min
+            threshold_midi = m21.pitch.Pitch('D3').midi
+            if lowest_harmony_midi is not None and lowest_harmony_midi > threshold_midi:
+                harmonic_rhythm_part.transpose(-12, inPlace=True)
+        except Exception:
+            pass
         harmonic_rhythm_part.partName = harmonic_rhythm_part.partName or 'Harmony'
         # Ensure stable, consecutive part IDs
         harmonic_rhythm_part.id = 'P2'
