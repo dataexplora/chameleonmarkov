@@ -21,15 +21,28 @@ import harmonisation_printer as prt
 mainFolder = cwd + '/training_data/'
 logging = True
 
-for f in os.walk(mainFolder):
-    if f[2][0].endswith('.xml'):
-        print('f: ', f[0].split('/')[-1])
-        # check if logging is required
-        if logging:
-            training_log_file = cwd+'/training_logs/'+f[0].split('/')[-1]
-            prt.initialise_log_file( training_log_file )
-        idiom = tic.TrainingIdiom(f[0]+'/', logging=logging, log_file=training_log_file)
-        idiom = grp.group_gcts_of_idiom(idiom)
-        # save learned idiom
-        with open('trained_idioms/'+idiom.name+'.pickle', 'wb') as handle:
-            pickle.dump(idiom, handle, protocol=pickle.HIGHEST_PROTOCOL)
+# ensure logs directory exists
+os.makedirs(cwd + '/training_logs', exist_ok=True)
+
+for dirpath, dirnames, filenames in os.walk(mainFolder):
+    # consider only directories that contain at least one XML file
+    xml_files = [fn for fn in filenames if fn.endswith('.xml')]
+    if not xml_files:
+        continue
+    idiom_name = dirpath.split('/')[-1]
+    print('f: ', idiom_name)
+    # check if logging is required
+    if logging:
+        training_log_file = cwd + '/training_logs/' + idiom_name
+        prt.initialise_log_file(training_log_file)
+    # build idiom from this folder only
+    folder_with_trailing_sep = dirpath if dirpath.endswith('/') else (dirpath + '/')
+    idiom = tic.TrainingIdiom(folder_with_trailing_sep, logging=logging, log_file=training_log_file)
+    idiom = grp.group_gcts_of_idiom(idiom)
+    # save learned idiom
+    out_path = 'trained_idioms/' + idiom.name + '.pickle'
+    if os.path.exists(out_path):
+        print('keep (exists):', idiom.name)
+        continue
+    with open(out_path, 'wb') as handle:
+        pickle.dump(idiom, handle, protocol=pickle.HIGHEST_PROTOCOL)
