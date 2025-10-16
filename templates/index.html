@@ -326,7 +326,7 @@
             $("#score_buttons button").prop('disabled', false);
             
             // Load and render score with error handling
-            var scorePath = 'static/harmonisations/' + window.file_name_xml;
+            var scorePath = 'static/harmonisations/' + encodeURIComponent(window.file_name_xml);
             console.log('Loading score:', scorePath);
             
             // First clear the container and show loading state
@@ -747,7 +747,7 @@
             return;
         }
         
-        var midiPath = 'static/harmonisations/' + window.file_name_mid;
+        var midiPath = 'static/harmonisations/' + encodeURIComponent(window.file_name_mid);
         console.log('Playing file:', midiPath);
         
         try {
@@ -780,7 +780,7 @@
         
         // Create a temporary link and trigger download
         var link = document.createElement('a');
-        link.href = 'static/harmonisations/' + file_name_xml;
+        link.href = 'static/harmonisations/' + encodeURIComponent(file_name_xml);
         link.download = file_name_xml.split('/').pop(); // Just the filename
         document.body.appendChild(link);
         link.click();
@@ -794,7 +794,7 @@
             return;
         }
         var link = document.createElement('a');
-        link.href = 'static/harmonisations/' + file_name_mid;
+        link.href = 'static/harmonisations/' + encodeURIComponent(file_name_mid);
         link.download = file_name_mid.split('/').pop();
         document.body.appendChild(link);
         link.click();
