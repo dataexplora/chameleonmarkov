@@ -16,10 +16,10 @@ mainFolder = cwd + '/trained_idioms/'
 idioms_list = []
 
 for file in os.listdir(mainFolder):
-    if file.endswith(".pickle"):
+    if file.endswith(".pickle") and not file.startswith('bl_'):
         idioms_list.append( file.split('.')[0] )
 print(idioms_list)
-bld.blend_all_idioms_from_list( idioms_list )
+bld.blend_all_idioms_from_list( idioms_list, saving_folder='trained_idioms/' )
 
 # for f in os.walk(mainFolder):
 #     if f[2][0].endswith('.xml'):

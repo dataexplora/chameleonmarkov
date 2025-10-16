@@ -15,6 +15,7 @@ import CM_user_output_functions as uof
 import os
 cwd = os.getcwd()
 import sys
+import music21 as m21
 import numpy as _np
 # Compatibility shim for old pickles referencing deprecated numpy module paths
 try:
@@ -26,7 +27,7 @@ except Exception:
 sys.path.insert(0, cwd + '/CM_logging')
 import harmonisation_printer as prt
 
-def harmonise_melody_with_idiom(melodyFolder, melodyFileName, idiomName, targetFolder='server_harmonised_output/', mode_in='Auto', use_GCT_grouping=False, voice_leading='simple', logging=False):
+def harmonise_melody_with_idiom(melodyFolder, melodyFileName, idiomName, targetFolder='server_harmonised_output/', mode_in='Auto', use_GCT_grouping=False, voice_leading='simple', name_suffix='', logging=False):
     '''
     voice_leading: 'simple', 'nn', 'bidirectional_bvl', TODO: 'markov_bvl'
     '''
@@ -54,5 +55,29 @@ def harmonise_melody_with_idiom(melodyFolder, melodyFileName, idiomName, targetF
         bbvl = vlf.BBVL(m, idiom, use_GCT_grouping, mode_in=mode_in)
         m = bbvl.apply_bbvl()
     # export to desired format
+    # enrich score metadata for downstream tools (Finale/MuseScore/OSMD)
+    try:
+        # Title: "<originalInputName> - <uid>"; uid extracted from name_suffix
+        uid = ''
+        try:
+            parts = [p for p in (name_suffix or '').split('_') if p]
+            if len(parts) > 0:
+                uid = parts[-1]
+        except Exception:
+            uid = ''
+        title = f"{m.name} - {uid}" if uid else m.name
+        if not isinstance(m.output_stream, m21.stream.Score):
+            tmpScore = m21.stream.Score()
+            tmpScore.insert(0, m.output_stream)
+            m.output_stream = tmpScore
+        meta = m21.metadata.Metadata()
+        meta.title = title
+        # Subtitle: only options (idiom, blend flag, grouping, voice-leading)
+        is_blend = idiomName.startswith('bl_')
+        meta.movementName = f"idiom={idiomName} | blend={is_blend} | grp={int(use_GCT_grouping)} | vl={voice_leading}"
+        meta.composer = 'Chameleon Harmoniser'
+        m.output_stream.metadata = meta
+    except Exception:
+        pass
     uof.generate_xml(m.output_stream, fileName=m.harmonisation_file_name+'.xml')
     return m, idiom

@@ -188,6 +188,7 @@ def upload():
                 mode_in=mode_in,
                 use_GCT_grouping=useGrouping,
                 voice_leading=tmp_vl_string,
+                name_suffix=name_suffix,
             )
     except Exception as e:
         # Log the exception and redirect back to the index to avoid the browser rendering JSON

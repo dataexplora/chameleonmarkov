@@ -241,7 +241,7 @@ class BlendingSession:
     # end get_most_common_transitions
 # end BlendingSession
 
-def blend_two_idioms_all_modes( idiom1_name, idiom2_name, saving_folder='blended_idioms/' ):
+def blend_two_idioms_all_modes( idiom1_name, idiom2_name, saving_folder='trained_idioms/' ):
     idiomFolder = cwd
     with open(idiomFolder+'/trained_idioms/'+idiom1_name+'.pickle', 'rb') as handle:
         idiom1 = pickle.load(handle)
@@ -272,8 +272,11 @@ def blend_two_idioms_all_modes( idiom1_name, idiom2_name, saving_folder='blended
                     pass
 # end blend_two_idioms_all_modes
 
-def blend_all_idioms_from_list( idioms_list ):
+def blend_all_idioms_from_list( idioms_list, saving_folder='trained_idioms/' ):
     for i1 in idioms_list:
         for i2 in idioms_list:
-            blend_two_idioms_all_modes( i1, i2 )
+            # skip self-blends
+            if i1 == i2:
+                continue
+            blend_two_idioms_all_modes( i1, i2, saving_folder=saving_folder )
 # end blend_all_idioms_from_list
